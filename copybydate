@@ -1,1 +1,165 @@
+#!/bin/bash 
+
 ##### This is a version for Mac only, not linux.
+
+##### Search files of a pointed date (YYYY-MM-DD) in the source directory 
+##### and its sub-directories; 
+##### and copy them to the target directory.
+
+#########################################
+#		Instruction		# 
+#########################################
+
+#set the default values and read arguments from the parameters
+#check if the source directory exist and with read permission, and get the absolute path of it
+#check if the target directory exist and with write permission, and get the absolute path of it
+#check if the pointed date exists
+#move into the source dirctory
+#find all files (or files pointed postfix, if pointed) in the source directory and its subdirectories;
+#copy files to target directory (ask permission if the overwrite argument exist and the target file exists).
+
+
+#########################################
+#		Functions		# 
+#########################################
+
+#usage
+copybydate_usage() 
+{
+
+	echo 'usage: copybydate: copybydate [-f directory] -t directory -d YYYY-MM-DD [-o] [-n "name"] [ -n "name"] [-h]' 
+
+}
+
+
+#check if the source directory exist and with read permission, and get the absolute path of it
+
+check_from_dir()
+
+{
+	if [[ ! -d "$from_dir" || ! -r "$from_dir" || ! -x "$from_dir" ]]; then 
+		echo -n "ERROR: Source directory '$from_dir' does not exists. "
+		echo "Or you do not have read or execute permission."
+		copybydate_usage
+		exit 1
+	else
+		echo "Source directory: $from_dir" 
+		cd "$from_dir"
+		from_dir="$PWD"
+		cd -
+		echo "Absolute path of source directory: $from_dir"
+	fi
+}
+
+#check if the target directory exist and with write permission, and get the absolute path of it
+
+check_to_dir()
+
+{
+	if [[ ! -d "$to_dir" || ! -r "$to_dir" || ! -x "$to_dir" || ! -w "$to_dir" ]]; then 
+		echo -n "ERROR: Target directory '$to_dir' does not exists. "
+		echo "Or you do not have read or write or execute permission."
+		copybydate_usage
+		exit 1
+	else
+		echo "target directory: $to_dir" 
+		cd "$to_dir"
+		to_dir="$PWD"
+		cd -
+		echo "Absolute path of target directory: $to_dir"
+	fi
+}
+
+#check if the pointed date exists
+
+check_date_copy()
+{
+
+	echo "You entered date: $date_copy"
+	if  date -j -f %Y-%m-%d "$date_copy" "+%Y-%m-%d" ; then
+		echo "$date_copy is a legal date with YYYY-MM-DD format."
+		date_copy_plus="$(date -j -v+1d -f %Y-%m-%d "$date_copy" "+%Y-%m-%d" )"
+		echo "$date_copy plus one day is: $date_copy_plus" 
+	else
+		echo "ERROR: $date_copy is not a legal date with YYYY-MM-DD format."
+		copybydate_usage
+		exit 1
+	fi
+}
+
+
+#find all files (or files pointed postfix, if pointed) in the source directory and its subdirectories;
+
+
+find_copy()
+{
+	echo "${name_opts[@]}"
+	if [ "${name_opts[0]}" = "" ]; then
+		name_opts[0]="-iname"
+		name_opts[1]="*"
+	fi
+	find "$from_dir" -type f \( "${name_opts[@]}" \)   \( -newermt "$date_copy" -not -newermt "$date_copy_plus" \) -exec cp -v $over_write {} "$to_dir" \;
+}
+
+
+#########################################
+#		Main			# 
+#########################################
+
+#set the default values and read arguments from the parameters
+
+##################	IMPORTANT! DON'T USE FUNCTION
+##################	FUNCTION DOES NOT WORK
+
+from_dir="$PWD"
+to_dir=""
+date_copy=""
+# store name options in array instead of variable
+name_opts=()
+over_write='-i'
+noc=0
+
+while [ "$1" != "" ]; do
+	case "$1" in 
+		-f | --from )	shift
+				from_dir="$1"
+				;;
+		-t | --to )	shift
+				to_dir="$1"
+				;;
+		-d | --date )	shift
+				date_copy="$1"
+				;;
+		-o | --overwrite )	over_write=''
+				;;
+		-n | --name )	shift
+				if [ ! $noc = 0 ]; then 
+					name_opts[$noc]="-or"	
+					noc=$((noc + 1))
+				fi
+				name_opts[$noc]="-iname"	
+				noc=$((noc + 1))
+				name_opts[$noc]="$1"
+				noc=$((noc + 1))
+				;;
+		-h | --help )	copybydate_usage
+				exit 0
+				;;
+		* )		echo "ERROR: Illegal argument $1"
+				copybydate_usage
+				exit 1
+	esac
+	shift
+done
+
+# check
+
+check_from_dir
+check_to_dir
+check_date_copy
+
+# find and copy
+
+find_copy
+
+# End 
